@@ -2637,7 +2637,7 @@ QUnit.module('Editing with real dataController', {
             }
         };
 
-        setupDataGridModules(this, ['data', 'columns', 'rows', 'gridView', 'masterDetail', 'editing', 'editorFactory', 'selection', 'headerPanel', 'columnFixing', 'validating', 'search'], {
+        setupDataGridModules(this, ['data', 'columns', 'columnHeaders', 'rows', 'gridView', 'masterDetail', 'editing', 'editorFactory', 'selection', 'headerPanel', 'columnFixing', 'validating', 'search'], {
             initViews: true
         });
 
@@ -7235,6 +7235,86 @@ QUnit.test("Cell mode - The editCellTemplate of the column should not be called 
 
     // assert
     assert.strictEqual(editCellTemplate.callCount, 1);
+});
+
+// T725319
+QUnit.test("Load panel should be hidden when changing loadPanel.enabled while loading", function(assert) {
+    // arrange
+    fx.off = true;
+
+    try {
+        var that = this,
+            $testElement = $("#container");
+
+        that.options.editing = {
+            mode: "row",
+            allowUpdating: true,
+            allowDeleting: true,
+            texts: {
+                confirmDeleteMessage: "",
+                editRow: ""
+            }
+        };
+        that.options.loadPanel = {
+            enabled: true
+        };
+        that.options.onRowRemoving = function(e) {
+            setTimeout(() => {
+                that.option("loadPanel.enabled", false);
+                that.rowsView.beginUpdate();
+                that.rowsView.optionChanged({ name: "loadPanel", fullName: "loadPanel.enabled" });
+                that.rowsView.endUpdate();
+            }, 10);
+            e.cancel = $.Deferred().promise();
+        };
+        that.isReady = function() {
+            that.dataController.isReady();
+        };
+
+        that.rowsView.render($testElement);
+        that.editingController.optionChanged({ name: "onRowRemoving" });
+
+        // act
+        that.deleteRow(0);
+        that.clock.tick(10);
+
+        // assert
+        assert.notOk(that.rowsView._loadPanel, "hasn't loadPanel");
+    } finally {
+        fx.off = false;
+    }
+});
+
+// T737789
+QUnit.test("The command column caption should be applied", function(assert) {
+    // arrange
+    var that = this,
+        $commandCellElement,
+        columnHeadersView = that.columnHeadersView,
+        $testElement = $('#container');
+
+    that.options.showColumnHeaders = true;
+    that.options.editing = {
+        mode: "row",
+        allowUpdating: true,
+        allowDeleting: true
+    };
+    that.options.columns.push({
+        type: "buttons",
+        caption: "Command Column",
+        alignment: "right",
+        buttons: ["edit", "delete"]
+    });
+    that.columnsController.reset();
+
+    // act
+    columnHeadersView.render($testElement);
+
+    // assert
+    $commandCellElement = $(columnHeadersView.getCellElement(0, 5));
+    assert.ok($commandCellElement.hasClass("dx-command-edit"), "has command column");
+    assert.strictEqual($commandCellElement.text(), "Command Column", "caption");
+    assert.strictEqual($commandCellElement.css("textAlign"), "right", "alignment");
 });
 
 

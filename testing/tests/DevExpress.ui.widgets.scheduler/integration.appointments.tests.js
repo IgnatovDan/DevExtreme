@@ -1390,6 +1390,68 @@ QUnit.test("Appointment should have correct position while vertical dragging, cr
     pointer.dragEnd();
 });
 
+QUnit.test("Appointment should be dragged correctly in grouped timeline (T739132)", function(assert) {
+    let data = new DataSource({
+        store: [{
+            "text": "Google AdWords Strategy",
+            "ownerId": [2],
+            "startDate": new Date(2017, 4, 2, 9, 0),
+            "endDate": new Date(2017, 4, 2, 10, 30),
+            "priority": 1
+        }]
+    });
+
+    let priorityData = [
+        {
+            text: "Low Priority",
+            id: 1,
+            color: "#1e90ff"
+        }, {
+            text: "High Priority",
+            id: 2,
+            color: "#ff9747"
+        }
+    ];
+
+    this.createInstance({
+        dataSource: data,
+        views: ["timelineMonth"],
+        currentView: "timelineMonth",
+        currentDate: new Date(2017, 4, 1),
+        startDayHour: 8,
+        endDayHour: 20,
+        cellDuration: 60,
+        editing: true,
+        groups: ["priority"],
+        resources: [{
+            fieldExpr: "priority",
+            allowMultiple: false,
+            dataSource: priorityData,
+            label: "Priority"
+        }]
+    });
+
+    this.clock.tick();
+
+    let updatedItem = {
+        "text": "Google AdWords Strategy",
+        "ownerId": [2],
+        "startDate": new Date(2017, 4, 1, 8, 0),
+        "endDate": new Date(2017, 4, 1, 9, 30),
+        "priority": 1
+    };
+
+    $(this.instance.$element()).find("." + APPOINTMENT_CLASS).eq(0).trigger(dragEvents.start);
+    $(this.instance.$element()).find("." + DATE_TABLE_CELL_CLASS).eq(0).trigger(dragEvents.enter);
+    $(this.instance.$element()).find("." + APPOINTMENT_CLASS).eq(0).trigger(dragEvents.end);
+
+    let dataSourceItem = this.instance.option("dataSource").items()[0];
+
+    this.clock.tick();
+    assert.deepEqual(dataSourceItem.startDate, updatedItem.startDate, "New data is correct");
+    assert.deepEqual(dataSourceItem.endDate, updatedItem.endDate, "New data is correct");
+});
+
 QUnit.test("Appointment should have correct position while dragging from group", function(assert) {
     this.createInstance({
         currentDate: new Date(2015, 6, 10),
@@ -3300,24 +3362,52 @@ QUnit.test("Rival long appointments should have right position on timeline month
     assert.equal($secondAppointment.position().top, 40, "Second appointment top is ok");
 });
 
-QUnit.test("Long appointment part should have right width on timeline month view", function(assert) {
+QUnit.test("Long appointment part should not be rendered on timeline month view (T678380)", function(assert) {
     var appointment = {
-        startDate: new Date(2016, 1, 25, 8, 0),
-        endDate: new Date(2016, 2, 1, 8, 0)
+        "text": "Ends april 1st at 7:59 am",
+        "startDate": new Date(2019, 2, 20, 9, 0),
+        "endDate": new Date(2019, 3, 1, 7, 59)
     };
 
     this.createInstance({
-        currentDate: new Date(2016, 2, 1),
+        currentDate: new Date(2019, 3, 2),
         currentView: "timelineMonth",
+        views: ["timelineMonth"],
+        recurrenceRuleExpr: null,
         startDayHour: 8,
         firstDayOfWeek: 0,
+        endDayHour: 18,
+        cellDuration: 60,
         dataSource: [appointment]
     });
 
-    var $appointment = $(this.instance.$element()).find("." + APPOINTMENT_CLASS).eq(0).get(0),
-        $cell = this.instance.$element().find("." + DATE_TABLE_CELL_CLASS).eq(0).get(0);
+    var $appointment = $(this.instance.$element()).find("." + APPOINTMENT_CLASS);
 
-    assert.roughEqual($appointment.getBoundingClientRect().width, $cell.getBoundingClientRect().width, 1.1, "appointment-part width is correct");
+    assert.equal($appointment.length, 0, "appointment-part was not rendered");
+});
+
+QUnit.test("Long appointment part should not be rendered on timeline workWeek view (T678380)", function(assert) {
+    var appointment = {
+        "text": "Ends april 1st at 7:59 am",
+        "startDate": new Date(2019, 2, 20, 9, 0),
+        "endDate": new Date(2019, 3, 1, 7, 59)
+    };
+
+    this.createInstance({
+        currentDate: new Date(2019, 3, 2),
+        currentView: "timelineWorkWeek",
+        views: ["timelineWorkWeek"],
+        recurrenceRuleExpr: null,
+        startDayHour: 8,
+        firstDayOfWeek: 0,
+        endDayHour: 18,
+        cellDuration: 60,
+        dataSource: [appointment]
+    });
+
+    var $appointment = $(this.instance.$element()).find("." + APPOINTMENT_CLASS);
+
+    assert.equal($appointment.length, 0, "appointment-part was not rendered");
 });
 
 QUnit.test("Appointment should have right width on timeline week view", function(assert) {

@@ -4374,7 +4374,7 @@ QUnit.test("height from style after updateDimensions when rendering to container
     assert.equal($("#dataGrid").find(".dx-datagrid").height(), 298);
 });
 
-// T362517
+// T362517, T734767
 QUnit.test("max-height from styles", function(assert) {
     // arrange, act
     var $dataGrid = $("#dataGrid").css("maxHeight", 400).dxDataGrid({
@@ -4398,11 +4398,7 @@ QUnit.test("max-height from styles", function(assert) {
 
     // assert
     assert.equal(dataGrid.totalCount(), 0, "no items");
-    if(browser.msie && parseInt(browser.version) <= 11) {
-        assert.equal($dataGrid.find(".dx-datagrid").height(), 400, "height is equals max-height in IE11");
-    } else {
-        assert.ok($dataGrid.find(".dx-datagrid").height() < 400, "height is less then max-height");
-    }
+    assert.ok($dataGrid.find(".dx-datagrid").height() < 400, "height is less then max-height");
 });
 
 // T412035
@@ -5872,6 +5868,84 @@ QUnit.test("contentReady should not be raised on row click if focusedRowEnabled"
     assert.strictEqual(dataGrid.option("focusedRowIndex"), 0, "focusedRowIndex is assigned");
     assert.strictEqual(dataGrid.option("focusedColumnIndex"), 0, "focusedColumnIndex is assigned");
     assert.strictEqual(dataGrid.option("focusedRowKey"), 1, "focusedRowKey is assigned");
+});
+
+QUnit.test("onFocusedRowChanged event should fire once if changed via API (T729593)", function(assert) {
+    var clock = sinon.useFakeTimers(),
+        focusedRowChangedCallCount = 0,
+        dataGrid = createDataGrid({
+            onFocusedRowChanged: function() {
+                focusedRowChangedCallCount++;
+            },
+            focusedRowEnabled: true,
+            keyExpr: "id",
+            dataSource: [{ id: 1 }]
+        });
+
+    clock.tick();
+
+    // act
+    dataGrid.option("focusedRowKey", 1);
+    clock.tick();
+
+    // assert
+    assert.equal(focusedRowChangedCallCount, 1, "focusedRowChangedCallCount");
+
+    clock.restore();
+});
+
+QUnit.test("onFocusedRowChanged event should fire only once if paging and init phase", function(assert) {
+    var clock = sinon.useFakeTimers(),
+        focusedRowChangedCallCount = 0;
+
+    createDataGrid({
+        keyExpr: "id",
+        focusedRowEnabled: true,
+        focusedRowKey: 3,
+        paging: {
+            pageSize: 2
+        },
+        onFocusedRowChanged: e => {
+            ++focusedRowChangedCallCount;
+            assert.ok(e.row, "Row object should exist");
+        },
+        dataSource: [
+            { id: 1 }, { id: 2 },
+            { id: 3 }, { id: 4 }
+        ]
+    });
+
+    clock.tick();
+
+    // assert
+    assert.equal(focusedRowChangedCallCount, 1, "focusedRowChangedCallCount");
+
+    clock.restore();
+});
+
+QUnit.test("onFocusedRowChanged event should not fire on init if focusedRowEnabled is true and focusedRowIndex, focusedRowKey aren't set", function(assert) {
+    var clock = sinon.useFakeTimers(),
+        focusedRowChangedCallCount = 0,
+        dataGrid = createDataGrid({
+            onFocusedRowChanged: function() {
+                focusedRowChangedCallCount++;
+            },
+            focusedRowEnabled: true,
+            keyExpr: "id",
+            dataSource: [{ id: 1 }]
+        });
+
+    clock.tick();
+
+    // assert
+    assert.equal(focusedRowChangedCallCount, 0, "focusedRowChangedCallCount");
+
+    // act
+    $(dataGrid.getCellElement(0, 0)).trigger("dxpointerdown");
+    // assert
+    assert.equal(focusedRowChangedCallCount, 1, "focusedRowChangedCallCount");
+
+    clock.restore();
 });
 
 QUnit.test("Click by the first row on the next page should focus it without grid refresh if scrolling.mode is virtual and focusedRowEnabled is true (T722879)", function(assert) {
@@ -11389,6 +11463,58 @@ QUnit.test("Cancel editing should works correctly if editing mode is form and ma
     assert.ok($(dataGrid.getRowElement(2)).hasClass("dx-data-row"), "row 2 is data row");
 });
 
+// T736360
+QUnit.test("Editing should be started without errors if update form items in contentReady", function(assert) {
+    // arrange
+    var items = [{ firstName: "Alex", lastName: "Black" }, { firstName: "John", lastName: "Dow" }];
+
+    var dataGrid = createDataGrid({
+        loadingTimeout: undefined,
+        editing: {
+            mode: "form",
+            allowUpdating: true,
+            form: {
+                items: [{
+                    itemType: "tabbed",
+                    tabs: [{
+                        title: "First Name",
+                        items: [{
+                            dataField: "firstName"
+                        }]
+                    }, {
+                        title: "Last Name",
+                        items: [{
+                            dataField: "lastName"
+                        }]
+                    }]
+                }]
+            }
+        },
+        dataSource: items,
+        columns: [{
+            dataField: "firstName",
+            validationRules: [{ type: "required" }]
+        }, {
+            dataField: "lastName",
+            validationRules: [{ type: "required" }]
+        }],
+        onContentReady: function(e) {
+            var $tabPanel = $(e.element).find(".dx-tabpanel");
+            if($tabPanel.length) {
+                var tabPanel = $tabPanel.dxTabPanel("instance");
+                tabPanel.option("items", tabPanel.option("items"));
+                tabPanel.option("selectedIndex", 1);
+            }
+        }
+    });
+
+    // act
+    dataGrid.editRow(0);
+
+    assert.ok($(dataGrid.getRowElement(0)).hasClass("dx-datagrid-edit-form"), "row 0 is edit form row");
+    assert.ok(dataGrid.getVisibleRows()[0].isEditing, "row 0 isEditing");
+});
+
 QUnit.test("KeyboardNavigation 'isValidCell' works well with handling of fixed 'edit' command column", function(assert) {
     // arrange, act
     var dataGrid = createDataGrid({
@@ -11855,6 +11981,37 @@ QUnit.test("Change pageIndex and pageSize via state if scrolling mode is virtual
     // assert
     assert.equal(dataGrid.pageIndex(), 0, "pageIndex");
     assert.equal(dataGrid.pageSize(), 2, "pageSize");
+});
+
+// T735143
+QUnit.test("Apply state with paging and filtering if filterPanel is visible", function(assert) {
+    var dataGrid = createDataGrid({
+        columns: ["id"],
+        dataSource: [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }],
+        paging: {
+            pageSize: 2,
+            pageIndex: 1
+        },
+        filterPanel: {
+            visible: true
+        },
+        headerFilter: {
+            visible: true
+        },
+        filterRow: {
+            visible: true
+        }
+    });
+
+    this.clock.tick();
+
+    // act
+    dataGrid.state({ pageIndex: 1, pageSize: 2, filterValue: ["id", "<>", 1] });
+    this.clock.tick();
+
+    // assert
+    assert.equal(dataGrid.pageIndex(), 1, "pageIndex is applied");
+    assert.equal(dataGrid.getVisibleRows().length, 1, "rows are filtered");
 });
 
 // T414555
