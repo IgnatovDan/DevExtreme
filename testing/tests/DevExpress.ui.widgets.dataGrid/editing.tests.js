@@ -92,7 +92,8 @@ QUnit.module('Editing', {
         };
         this.click = function($element, selector) {
             var $targetElement = this.find($element, selector);
-            var event = $.Event("dxclick");
+            var isLink = $targetElement.hasClass("dx-link");
+            var event = $.Event(isLink ? "click" : "dxclick");
             $($targetElement).trigger(event);
             this.clock.tick();
             return event;
@@ -1360,7 +1361,7 @@ QUnit.test('Not remove row with message', function(assert) {
         assert.ok(!this.dataController.refreshed, 'not refreshed data');
 
         // act
-        testElement.find('tbody > tr').first().find('a').trigger('dxclick'); // show confirm
+        testElement.find('tbody > tr').first().find('a').trigger('click'); // show confirm
         this.clock.tick();
 
         // assert
@@ -2648,7 +2649,8 @@ QUnit.module('Editing with real dataController', {
         };
         this.click = function($element, selector) {
             var $targetElement = this.find($element, selector);
-            $($targetElement).trigger('dxclick');
+            var isLink = $targetElement.hasClass("dx-link");
+            $($targetElement).trigger(isLink ? 'click' : 'dxclick');
             this.clock.tick();
         };
     },
@@ -7680,7 +7682,7 @@ QUnit.test("Changing edit icon in the 'buttons' command column if repaintChanges
 QUnit.test("Custom button click should be prevented", function(assert) {
     // arrange
     var $linkElement,
-        event = $.Event("dxclick");
+        event = $.Event("click");
 
     this.options.columns = [
         {
@@ -8925,6 +8927,45 @@ QUnit.testInActiveWindow("Tooltip should be positioned by left side when the dro
     tooltipInstance = $testElement.find("tbody td").eq(2).find(".dx-overlay.dx-invalid-message").dxOverlay("instance");
     assert.strictEqual(tooltipInstance.option("position").my, "top left", "position.my of the tooltip is restored");
     assert.strictEqual(tooltipInstance.option("position").at, "bottom left", "position.at of the tooltip is restored");
+});
+
+// T741739
+QUnit.testInActiveWindow("Tooltip should be positioned by left side if column dataType and alignment are not defined", function(assert) {
+    // arrange
+    var that = this,
+        tooltipInstance,
+        rowsView = that.rowsView,
+        $testElement = renderer("#container");
+
+    rowsView.render($testElement);
+    that.applyOptions({
+        editing: {
+            mode: "batch",
+            allowUpdating: true
+        },
+        columns: [
+            {
+                dataField: "test",
+                validationRules: [{ type: "required" }]
+            },
+            "lastName",
+            "age"
+        ]
+    });
+    that.editorFactoryController._getFocusedElement = function() {
+        return $testElement.find("input");
+    };
+
+    that.cellValue(0, 0, "");
+    that.editCell(0, 0);
+    that.clock.tick();
+
+    // assert
+    tooltipInstance = $testElement.find("tbody td").eq(0).find(".dx-overlay.dx-invalid-message").dxOverlay("instance");
+    assert.ok($testElement.find("tbody td").eq(0).hasClass("dx-datagrid-invalid"), "failed validation");
+    assert.ok(tooltipInstance.option("visible"), "tooltip is visible");
+    assert.strictEqual(tooltipInstance.option("position").my, "top left", "position.my of the tooltip");
+    assert.strictEqual(tooltipInstance.option("position").at, "bottom left", "position.at of the tooltip");
 });
 
 // T523770
@@ -11192,7 +11233,8 @@ QUnit.module('Editing with real dataController with grouping, masterDetail', {
         // };
         this.click = function($element, selector) {
             var $targetElement = this.find($element, selector);
-            $($targetElement).trigger('dxclick');
+            var isLink = $targetElement.hasClass("dx-link");
+            $($targetElement).trigger(isLink ? 'click' : 'dxclick');
             this.clock.tick();
         };
 
@@ -12258,7 +12300,7 @@ QUnit.test("Edit link call editRow", function(assert) {
     // act
     var $links = testElement.find(".dx-row").eq(rowIndex).find(".dx-link-edit");
     assert.equal($links.length, 1, "edit links count");
-    $($links.eq(0)).trigger("dxclick");
+    $($links.eq(0)).trigger("click");
     this.clock.tick();
 
     // assert
