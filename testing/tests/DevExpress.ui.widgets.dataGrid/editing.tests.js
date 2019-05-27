@@ -4638,6 +4638,40 @@ QUnit.test("Remove row when set onRowRemoved", function(assert) {
     assert.equal(testElement.find('.dx-data-row').length, 6, "count rows");
 });
 
+// T741746
+QUnit.test("deleteRow should not work if adding is started", function(assert) {
+    // arrange
+    var that = this,
+        rowsView = this.rowsView,
+        testElement = $('#container');
+
+    that.options.editing = {
+        allowDeleting: true
+    };
+
+    rowsView.render(testElement);
+    that.editingController.init();
+
+    // assert
+    assert.equal(testElement.find('.dx-data-row').length, 7, "row count");
+
+    // act
+    that.addRow();
+    that.deleteRow(2);
+
+    // assert
+    assert.ok(that.editingController.isEditing(), "editing is started");
+    assert.equal(testElement.find('.dx-data-row').length, 8, "row is not removed");
+
+    // act
+    that.cancelEditData();
+    that.deleteRow(2);
+
+    // assert
+    assert.notOk(that.editingController.isEditing(), "no editing");
+    assert.equal(testElement.find('.dx-data-row').length, 6, "row is removed");
+});
+
 // T100624
 QUnit.test('Edit Cell when the width of the columns in percent', function(assert) {
     // arrange
@@ -7317,6 +7351,53 @@ QUnit.test("The command column caption should be applied", function(assert) {
     assert.ok($commandCellElement.hasClass("dx-command-edit"), "has command column");
     assert.strictEqual($commandCellElement.text(), "Command Column", "caption");
     assert.strictEqual($commandCellElement.css("textAlign"), "right", "alignment");
+});
+
+// T741679
+QUnit.test("A dependent cascading editor should be updated when a master cell value is changed if showEditorAlways is enabled in batch mode", function(assert) {
+    // arrange
+    var that = this,
+        selectBoxInstance,
+        rowsView = that.rowsView,
+        $testElement = $('#container');
+
+    that.options.editing = {
+        mode: "batch",
+        allowUpdating: true
+    };
+    that.options.dataSource.store = [{ StateID: 1, CityID: 1 }, { StateID: 2, CityID: 2 }];
+    that.options.columns = [{
+        dataField: "StateID",
+        showEditorAlways: true,
+        setCellValue: function(rowData, value) {
+            rowData.StateID = value;
+            rowData.CityID = value;
+        },
+        lookup: {
+            dataSource: [{ id: 1, name: "California" }, { id: 2, name: "Texas" }],
+            displayExpr: "name",
+            valueExpr: "id"
+        }
+    }, {
+        dataField: "CityID",
+        lookup: {
+            dataSource: [{ id: 1, name: "Arcadia" }, { id: 2, name: "Dallas" }],
+            displayExpr: "name",
+            valueExpr: "id"
+        }
+    }];
+    that.dataController.init();
+    that.columnsController.init();
+    rowsView.render($testElement);
+
+    selectBoxInstance = $(rowsView.getCellElement(0, 0)).find(".dx-selectbox").dxSelectBox("instance");
+    selectBoxInstance.option("value", 2);
+
+    // act
+    $(rowsView.getCellElement(1, 0)).trigger("dxclick");
+
+    // assert
+    assert.strictEqual($(rowsView.getCellElement(0, 1)).text(), "Dallas", "text of the second column of the first row");
 });
 
 
