@@ -528,6 +528,42 @@ QUnit.module("tags", moduleSetup, () => {
         assert.equal($tagBox.find("." + TAGBOX_TAG_CLASS).length, 0, "tags are cleared");
         assert.equal($input.val(), "", "input is also cleared");
     });
+
+    QUnit.test("Tag should have empty text if display value is empty", assert => {
+        const $tagBox = $("#tagBox").dxTagBox({
+            items: [{ name: "", value: 1 }, { name: "two", value: 2 }],
+            displayExpr: "name",
+            valueExpr: "value",
+            value: [1]
+        });
+
+        const $tag = $tagBox.find("." + TAGBOX_TAG_CLASS);
+        assert.equal($tag.text(), "", "tag has empty text");
+    });
+
+    QUnit.test("Tag should have correct text if display value is '0'", assert => {
+        const $tagBox = $("#tagBox").dxTagBox({
+            items: [{ name: 0, value: 1 }, { name: "two", value: 2 }],
+            displayExpr: "name",
+            valueExpr: "value",
+            value: [1]
+        });
+
+        const $tag = $tagBox.find("." + TAGBOX_TAG_CLASS);
+        assert.equal($tag.text(), 0, "tag has correct text");
+    });
+
+    QUnit.test("Tag should have correct text if display value is 'null'", assert => {
+        const $tagBox = $("#tagBox").dxTagBox({
+            items: [{ name: null, value: 1 }, { name: "two", value: 2 }],
+            displayExpr: "name",
+            valueExpr: "value",
+            value: [1]
+        });
+
+        const $tag = $tagBox.find("." + TAGBOX_TAG_CLASS);
+        assert.equal($tag.text(), "", "tag has correct text");
+    });
 });
 
 QUnit.module("multi tag support", {
@@ -2606,7 +2642,7 @@ QUnit.module("searchEnabled", moduleSetup, () => {
         });
         const $input = $tagBox.find("input");
         // NOTE: width should be 0.1 because of T393423
-        assert.roughEqual($input.width(), 0.1, 0.1, "input has correct width");
+        assert.roughEqual($input.width(), 0.1, 0.101, "input has correct width");
     });
 
     QUnit.test("no placeholder when textbox is not empty", assert => {
@@ -4710,6 +4746,40 @@ QUnit.module("dataSource integration", moduleSetup, () => {
         const tagText = $tagBox.find(`.${TAGBOX_TAG_CLASS}`).text();
         assert.strictEqual(tagText, "Test1 changed", "Tag text contains an updated data");
     });
+
+    QUnit.test("TagBox should correctly handle disposing on data loading", (assert) => {
+        assert.expect(1);
+
+        try {
+            const ds = new CustomStore({
+                load: function() {
+                    const deferred = $.Deferred();
+
+                    setTimeout(function() {
+                        deferred.resolve([2]);
+                    }, 1000);
+
+                    return deferred.promise();
+                }
+            });
+
+            const tagBox = $("#tagBox").dxTagBox({
+                dataSource: ds,
+                value: [2],
+                onInitializing: function() {
+                    this.beginUpdate();
+                }
+            }).dxTagBox("instance");
+
+            tagBox.endUpdate();
+            tagBox.dispose();
+            this.clock.tick(1000);
+        } catch(e) {
+            assert.ok(false, "TagBox raise the error");
+        }
+
+        assert.ok(true, "TagBox rendered");
+    });
 });
 
 QUnit.module("performance", () => {
@@ -5203,9 +5273,9 @@ QUnit.module("regression", {
 
     QUnit.test("T403756 - dxTagBox treats removing a dxTagBox item for the first time as removing the item", (assert) => {
         const items = [
-            { id: 1, text: "Item 1" },
-            { id: 2, text: "Item 2" },
-            { id: 3, text: "Item 3" }
+            { id: 1, name: "Item 1" },
+            { id: 2, name: "Item 2" },
+            { id: 3, name: "Item 3" }
         ];
 
         const tagBox = $("#tagBox").dxTagBox({

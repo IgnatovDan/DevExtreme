@@ -634,6 +634,7 @@ var Overlay = Widget.inherit({
         });
 
         if(this._parentHidden) {
+            this._isHidden = true;
             return deferred.resolve();
         }
 
@@ -1232,10 +1233,10 @@ var Overlay = Widget.inherit({
         this._stopAnimation();
 
         this._normalizePosition();
-        this._fixHeightAfterSafariAddressBarResizing();
         this._renderShading();
         this._renderDimensions();
         var resultPosition = this._renderPosition();
+        this._fixHeightAfterSafariAddressBarResizing();
 
         this._actions.onPositioned({ position: resultPosition });
     },
